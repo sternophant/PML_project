@@ -1,0 +1,95 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "stern0phant"
+date: "30 April 2016"
+output: html_document
+---
+
+## 1 Introduction
+This report was created for the peer assessment of the Practical Machine Learning course project on Coursera. The project's goal is to utilize provided data to build a model, which utilizes accelerometer data to evaluate in which way a physical exercise is performed.
+
+## 2 Model Building
+The following sub-sections describe the process of building the prediction model.
+
+### 2.1 Preparations
+```{r Load packages, message=FALSE}
+## Load additional packages
+library(caret)
+library(dplyr)
+library(randomForest)
+```
+
+```{r Load data, cache=TRUE}
+## Load provided data
+download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+              destfile = "data.csv",
+              method = "auto")
+
+download.file(url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",
+              destfile = "data_submit.csv",
+              method = "auto")
+
+data <- read.csv("data.csv", na.strings = c("NA", "", "#DIV/0!"))
+data_submit <- read.csv("data_submit.csv")
+
+## Create a training and a test sample
+set.seed(741)
+inTrain = createDataPartition(data$X, p = 0.80, list = F)
+data_train <- data[inTrain, ]
+data_test  <- data[-inTrain, ]
+```
+
+### 2.2 Predictor selection
+```{r}
+predictors <- names(data_train)
+
+predictors <- predictors[!(predictors == "classe")] # Remove outcome variable
+predictors <- predictors[!(predictors == "X")] # Remove count variable
+
+# Remove predictors, which are frequently NA
+for (i in 1:160) {
+  if ((sum(is.na(data_train[ , i]))/160) >= 50) {
+    predictors <- predictors[!(predictors == names(data_train)[i])]
+  }
+}
+
+data_train_clean <- select(data_train, one_of(predictors, "classe"))
+```
+
+### 2.3 Train and select a prediction model
+First of all a randomn forest model is trained. This model type is known for good performance on classification problems. In order to evaluate the trained model 3-fold cross validation is used to estimate the out of sample error.
+
+```{r, cache = TRUE}
+set.seed(741)
+mod_fit <- train(classe ~ .,
+                 data_train_clean,
+                 method = "rf",
+                 ntree = 50,
+                 trControl = trainControl(method = "cv", 
+                                          number = 3))
+
+  confusionMatrix(mod_fit)
+```
+
+The averaged accuracy of the cross validated confusion matrix is already sufficient. Therefore, the trained model is suitable.
+
+### 2.4 Out of sample error
+In order to estimate the out of sample error the model is used to predict the test sample and compared to the correct results. 
+
+```{r}
+predict_test <- predict(mod_fit, data_test)
+confusionMatrix(predict_test, data_test$classe)[2:3]
+```
+
+The out of sample error of the trained model on the test set is quite low (1-Accuracy). The model seems to work very well.
+
+## Conclusion
+The trained random forest model accurately classifies the way the participants performed the excercise with the provided data.
+
+## Annex
+
+### Environment
+```{r}
+sessionInfo()
+```
+
